@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://appsforoffice.microsoft.com; style-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; media-src 'none'; worker-src 'none'">
+  <title>Document QC for Word</title>
+  <link rel="stylesheet" href="./taskpane.css">
+</head>
+<body>
+  <header class="pane-header">
+    <div>
+      <div class="eyebrow">DOCUMENT QC</div>
+      <h1>文書品質チェック</h1>
+    </div>
+    <span id="environmentBadge" class="environment-badge">Word</span>
+  </header>
+
+  <main>
+    <section class="intro-card">
+      <p>開いているWord文書を、外部へ送信せずにチェックします。</p>
+      <button id="checkButton" class="button primary wide">この文書をチェック</button>
+      <div id="progress" class="progress" hidden>
+        <div class="progress-track"><span id="progressBar"></span></div>
+        <p id="progressText" role="status">準備中…</p>
+      </div>
+      <div id="errorBox" class="alert error" role="alert" hidden></div>
+    </section>
+
+    <section id="summarySection" class="summary-section" hidden>
+      <div class="summary-row" aria-label="チェック結果の件数">
+        <button class="summary-stat error" data-severity="error"><strong id="errorCount">0</strong><span>要修正</span></button>
+        <button class="summary-stat confirm" data-severity="confirm"><strong id="confirmCount">0</strong><span>確認</span></button>
+        <button class="summary-stat info" data-severity="info"><strong id="infoCount">0</strong><span>参考</span></button>
+      </div>
+      <p id="resultMeta" class="muted"></p>
+
+      <div class="toolbar">
+        <input id="resultSearch" type="search" placeholder="結果を検索" aria-label="結果を検索">
+        <select id="severityFilter" aria-label="重要度で絞り込み">
+          <option value="all">すべて</option>
+          <option value="error">要修正</option>
+          <option value="confirm">確認</option>
+          <option value="info">参考</option>
+        </select>
+      </div>
+
+      <div id="cleanState" class="clean-state" hidden>
+        <strong>指摘はありません</strong>
+        <span>現在有効なルールでは問題を検出しませんでした。</span>
+      </div>
+      <div id="filteredEmpty" class="clean-state" hidden>
+        <strong>該当する結果はありません</strong>
+        <span>検索条件または重要度を変更してください。</span>
+      </div>
+      <div id="resultsList" class="results-list"></div>
+    </section>
+
+    <details class="settings-card">
+      <summary>ルール設定 <span id="enabledRuleCount"></span></summary>
+      <p class="muted">設定はこの作業ウィンドウを閉じるまで有効です。端末には保存しません。</p>
+      <div class="settings-actions">
+        <button id="resetRules" class="button small">すべてON</button>
+      </div>
+      <div id="rulesList" class="rules-list"></div>
+    </details>
+
+    <section class="privacy-note">
+      <strong>文書内容は外部送信しません</strong>
+      <span>Office.jsとAdd-in本体の読み込みを除き、文書内容を送るAPIは使用しません。</span>
+    </section>
+  </main>
+
+  <footer>Document QC v1.1.0</footer>
+
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <script type="module" src="../src/office/taskpane.js"></script>
+</body>
+</html>

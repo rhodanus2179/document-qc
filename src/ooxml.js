@@ -3,15 +3,33 @@ import { readZip, decodeEntry, normalizePath } from './zip.js';
 const NS = '*';
 
 export async function parseOfficeFile(file, onProgress = () => {}) {
-  const lower = file.name.toLowerCase();
-  if (!lower.endsWith('.docx') && !lower.endsWith('.xlsx')) throw new Error('対応形式は .docx と .xlsx です。');
+  const filename = file?.name || '';
+  validateFilename(filename);
   onProgress(15, 'ファイルをメモリへ読み込んでいます');
   const buffer = await file.arrayBuffer();
+  return parseOfficeBuffer(buffer, filename, onProgress);
+}
+
+export async function parseOfficeBuffer(buffer, filename, onProgress = () => {}) {
+  validateFilename(filename);
+  const lower = filename.toLowerCase();
+  const arrayBuffer = normalizeArrayBuffer(buffer);
   onProgress(35, 'OOXMLパッケージを展開しています');
-  const entries = await readZip(buffer);
+  const entries = await readZip(arrayBuffer);
   onProgress(55, '文書構造を解析しています');
-  if (lower.endsWith('.docx')) return parseDocx(entries, file.name);
-  return parseXlsx(entries, file.name);
+  if (lower.endsWith('.docx')) return parseDocx(entries, filename);
+  return parseXlsx(entries, filename);
+}
+
+function validateFilename(filename) {
+  const lower = String(filename || '').toLowerCase();
+  if (!lower.endsWith('.docx') && !lower.endsWith('.xlsx')) throw new Error('対応形式は .docx と .xlsx です。');
+}
+
+function normalizeArrayBuffer(value) {
+  if (value instanceof ArrayBuffer) return value;
+  if (ArrayBuffer.isView(value)) return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+  throw new Error('Office文書データを ArrayBuffer として読み込めません。');
 }
 
 function parseXml(text, label) {
@@ -98,7 +116,7 @@ function parseXlsx(entries, filename) {
   const relMap = new Map();
   for (const rel of all(rels, 'Relationship')) relMap.set(attr(rel, 'Id'), attr(rel, 'Target'));
 
-  const sharedStringsDoc = parseXml(decodeEntry(entries, 'xl/sharedStrings.xml'), 'sharedStrings.xml');
+  const sharedStringsDoc = parseXml(decodeEntry(entries, 'xl/sharedStrings.xml'), 'xl/sharedStrings.xml');
   const sharedStrings = sharedStringsDoc ? all(sharedStringsDoc, 'si').map(si => textOf(si)) : [];
 
   const sheets = [];

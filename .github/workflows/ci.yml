@@ -17,23 +17,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in src/*.js; do
+          while IFS= read -r -d '' file; do
             node --check "$file"
-          done
+          done < <(find src -name '*.js' -print0)
 
       - name: Run rule regression tests
         shell: bash
         run: |
           set -euo pipefail
           node --experimental-default-type=module tests/rules.mjs
+          node --experimental-default-type=module tests/finding-meta.mjs
 
       - name: Check hidden-state CSS invariant
         shell: bash
         run: |
           set -euo pipefail
           grep -Fq '[hidden] { display: none !important; }' styles.css
+          grep -Fq '[hidden] { display: none !important; }' addin/taskpane.css
 
-      - name: Enforce no-runtime-network invariant
+      - name: Enforce runtime-network boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -41,11 +43,18 @@ jobs:
             echo 'Network-capable API found outside src/network-lock.js'
             exit 1
           fi
-          if grep -RInE 'https?://' . --include='*.html'; then
-            echo 'External URL found in HTML'
+          if grep -RInE 'https?://' index.html; then
+            echo 'External URL found in standalone HTML'
+            exit 1
+          fi
+          external_script_urls="$(grep -oE 'src="https?://[^"]+' addin/taskpane.html | sed 's/^src="//' || true)"
+          if [ "$external_script_urls" != 'https://appsforoffice.microsoft.com/lib/1/hosted/office.js' ]; then
+            echo 'Unexpected external script URL in addin/taskpane.html'
+            printf '%s\n' "$external_script_urls"
             exit 1
           fi
           grep -q "connect-src 'none'" index.html
+          grep -q "connect-src 'none'" addin/taskpane.html
 
       - name: Check for persistence APIs
         shell: bash
@@ -55,3 +64,26 @@ jobs:
             echo 'Persistent browser storage or service worker usage found'
             exit 1
           fi
+
+      - name: Validate Word Add-in manifest structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+
+          path = Path('addin/manifest.xml')
+          root = ET.parse(path).getroot()
+          xml = path.read_text(encoding='utf-8')
+          required = [
+              '<Permissions>ReadWriteDocument</Permissions>',
+              '<OfficeTab id="TabReviewWord">',
+              'xsi:type="ShowTaskpane"',
+              'https://rhodanus2179.github.io/document-qc/addin/taskpane.html',
+          ]
+          for token in required:
+              if token not in xml:
+                  raise SystemExit(f'manifest is missing: {token}')
+          print(root.tag)
+          PY
