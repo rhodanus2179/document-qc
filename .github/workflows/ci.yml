@@ -29,8 +29,8 @@ jobs:
             echo 'Network-capable API found outside src/network-lock.js'
             exit 1
           fi
-          if grep -RInE '<(script|link)[^>]+(src|href)=["'"']https?://' . --include='*.html'; then
-            echo 'External runtime asset found in HTML'
+          if grep -RInE 'https?://' . --include='*.html'; then
+            echo 'External URL found in HTML'
             exit 1
           fi
           grep -q "connect-src 'none'" index.html
