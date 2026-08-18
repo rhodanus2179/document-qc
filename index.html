@@ -126,18 +126,18 @@
     <section id="view-about" class="view">
       <article class="card prose">
         <h2>このアプリについて</h2>
-        <p>Document QC は OOXML（<code>.docx</code> / <code>.xlsx</code>）をブラウザ上で直接解析する、完全静的な品質チェックツールです。</p>
+        <p>Document QC v1.0.0 は OOXML（<code>.docx</code> / <code>.xlsx</code>）をブラウザ上で直接解析する、完全静的な品質チェックツールです。</p>
         <h3>セキュリティ上の境界</h3>
         <p>アプリケーションコードには文書アップロード用APIが存在しません。ネットワークAPIも実行時に無効化し、Content Security Policy で <code>connect-src 'none'</code> を指定しています。</p>
         <p>ただし、ブラウザやOSそのもの、端末上の他ソフトウェアまで含む完全な機密性を保証するものではありません。機密情報は所属組織の情報管理規程に従って扱ってください。</p>
         <h3>現在の範囲</h3>
-        <p>誤記・不可視文字・表記の混在、Wordの空表・校正跡・図表参照、Excelのエラー値・参照切れ・非表示要素・外部リンク・数式パターン異常などをチェックします。意味論的なAIレビューはこの初期版では行いません。</p>
+        <p>誤記・不可視文字・表記の混在、Wordの空表・校正跡・図表参照、Excelのエラー値・参照切れ・非表示要素・外部リンク・数式パターン異常などをチェックします。意味論的なAIレビューはv1では行いません。</p>
       </article>
     </section>
   </main>
 
   <footer>
-    <span>Document QC</span><span>Static / client-side only</span>
+    <span>Document QC v1.0.0</span><span>Static / client-side only</span>
   </footer>
 
   <script src="./src/network-lock.js"></script>
