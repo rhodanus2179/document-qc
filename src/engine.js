@@ -27,6 +27,21 @@ function runOne(rule, model, push) {
     case 'repeated-punctuation': return forParagraphMatch(model, /(、、+|。。+|，，+|．．+)/g, push, '句読点が連続しています。', '重複を確認して修正');
     case 'punctuation-mix': return punctuationMix(model, push);
     case 'register-mix': return registerMix(model, push);
+    case 'literal-replacement': return literalReplacements(rule, model, push);
+    case 'kw-case': return scanContentMatch(model, /(?<![A-Za-z])(?:KW|kw)(?![A-Za-z])/g, push, '単位 kW の大文字小文字を確認してください。', 'kW');
+    case 'approx-redundancy': return approximateRedundancy(model, push);
+    case 'each-redundancy': return eachRedundancy(model, push);
+    case 'double-negative': return scanContentMatch(model, /(ないわけではない|なくはない|ないこともない)/g, push, '二重否定になっています。意図したニュアンスか確認してください。', '可能であれば肯定表現に言い換え');
+    case 'start-time-yori': return startTimeYori(model, push);
+    case 'percent-width-mix': return notationMix(model, push, '％', '%', 'パーセント記号');
+    case 'co2-mix': return notationMix(model, push, 'CO2', 'CO₂', 'CO2表記');
+    case 'slash-width-mix': return notationMix(model, push, '／', '/', 'スラッシュ');
+    case 'year-format-mix': return yearFormatMix(model, push);
+    case 'ton-unit-mix': return tonUnitMix(model, push);
+    case 'tco2-mix': return notationMix(model, push, 't-CO2', 'tCO2', 'CO2質量単位');
+    case 'nth-day': return nthDay(model, push);
+    case 'fullwidth-unit': return fullwidthUnit(model, push);
+
     case 'empty-table': return model.tables.filter(t => !t.text).forEach(t => push({ location: `表 ${t.index}`, message: `${t.rows}行×${t.cols}列の空の表があります。`, suggestion: '不要であれば表を削除' }));
     case 'red-text': return redText(model, push);
     case 'comments': if (model.hasComments) push({ location: '文書全体', message: 'コメントが残っています。', suggestion: '必要性を確認し、成果品では削除を検討' }); return;
@@ -34,6 +49,10 @@ function runOne(rule, model, push) {
     case 'broken-reference-text': return forParagraphMatch(model, /(エラー!\s*参照元が見つかりません。?|Error!\s*Reference source not found\.?)/gi, push, '相互参照のエラー文字列があります。', '参照先フィールドを確認');
     case 'missing-caption': return missingCaptions(model, push);
     case 'caption-gap': return captionGaps(model, push);
+    case 'caption-duplicate': return captionDuplicates(model, push);
+    case 'heading-edge-space': return headingEdgeSpaces(model, push);
+    case 'paragraph-trailing-space': return paragraphTrailingSpaces(model, push);
+
     case 'error-cell': return excelErrorCells(model, push);
     case 'broken-formula-ref': return eachCell(model, ({ sheet, cell }) => { if (cell.formula?.includes('#REF!')) push(cellFinding(sheet, cell, '数式に #REF! が含まれています。', '参照先を修正')); });
     case 'hidden-sheet': return model.sheets.filter(s => s.state !== 'visible').forEach(s => push({ location: `シート「${s.name}」`, matched: s.state, message: `シートが ${s.state} 状態です。`, suggestion: '意図した非表示か確認' }));
@@ -43,6 +62,64 @@ function runOne(rule, model, push) {
     case 'formula-value-outlier': return formulaValueOutliers(model, push);
     case 'formula-pattern-outlier': return formulaPatternOutliers(model, push);
     case 'self-reference': return selfReferences(model, push);
+    case 'missing-sheet-reference': return missingSheetReferences(model, push);
+  }
+}
+
+function contentItems(model) {
+  if (model.kind === 'word') {
+    return model.paragraphs.map(p => ({
+      text: p.text,
+      location: paragraphLocation(p),
+      context: (start, length) => excerpt(p.text, start, length)
+    }));
+  }
+  const items = [];
+  for (const sheet of model.sheets) {
+    for (const cell of sheet.cells) {
+      if (cell.value === null || cell.value === undefined || cell.value === '') continue;
+      const text = String(cell.value);
+      items.push({
+        text,
+        location: `シート「${sheet.name}」 ${cell.ref}`,
+        context: () => text
+      });
+    }
+  }
+  return items;
+}
+
+function contentText(model) {
+  return contentItems(model).map(item => item.text).join('\n');
+}
+
+function scanContentMatch(model, regex, push, message, suggestion) {
+  for (const item of contentItems(model)) {
+    regex.lastIndex = 0;
+    let m;
+    while ((m = regex.exec(item.text))) {
+      push({
+        location: item.location,
+        matched: visibleMatch(m[0]),
+        message,
+        suggestion,
+        context: item.context(m.index, m[0].length)
+      });
+      if (!regex.global) break;
+    }
+  }
+}
+
+function literalReplacements(rule, model, push) {
+  for (const replacement of rule.replacements || []) {
+    const regex = new RegExp(escapeRegExp(replacement.from), 'g');
+    scanContentMatch(
+      model,
+      regex,
+      push,
+      `「${replacement.from}」の表記を確認してください。`,
+      replacement.to
+    );
   }
 }
 
@@ -77,6 +154,131 @@ function registerMix(model, push) {
   if (polite && plain) {
     const preferred = polite >= plain ? '敬体（です・ます調）' : '常体（である調）';
     push({ location: '文書全体', matched: `敬体 ${polite} / 常体 ${plain}`, message: `文体が混在しています。簡易判定では ${preferred} が多数です。`, suggestion: '引用等を除き、文書方針に合わせて確認' });
+  }
+}
+
+function approximateRedundancy(model, push) {
+  const re = /約\s*([0-9０-９][0-9０-９,，.．]*)\s*(名|人|件|個|台|回|％|%|年|か月|ヶ月|日|時間|分|円)?\s*くらい/g;
+  for (const item of contentItems(model)) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(item.text))) {
+      push({
+        location: item.location,
+        matched: m[0],
+        message: '「約」と「くらい」が重複しています。',
+        suggestion: `約${m[1]}${m[2] || ''}`,
+        context: item.context(m.index, m[0].length)
+      });
+    }
+  }
+}
+
+function eachRedundancy(model, push) {
+  const re = /各([^\s、。，．]{1,12})ごとに/g;
+  for (const item of contentItems(model)) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(item.text))) {
+      push({
+        location: item.location,
+        matched: m[0],
+        message: '「各」と「ごとに」の意味が重複している可能性があります。',
+        suggestion: `「各${m[1]}」または「${m[1]}ごとに」に整理`,
+        context: item.context(m.index, m[0].length)
+      });
+    }
+  }
+}
+
+function startTimeYori(model, push) {
+  const re = /([0-9０-９]{1,2})時より(開始|実施|開催)/g;
+  for (const item of contentItems(model)) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(item.text))) {
+      push({
+        location: item.location,
+        matched: m[0],
+        message: '開始点を示す「より」は「から」に言い換えられる場合があります。',
+        suggestion: `${m[1]}時から${m[2]}`,
+        context: item.context(m.index, m[0].length)
+      });
+    }
+  }
+}
+
+function notationMix(model, push, a, b, label) {
+  const text = contentText(model);
+  const countA = countLiteral(text, a);
+  const countB = countLiteral(text, b);
+  if (!countA || !countB) return;
+  const preferred = countA >= countB ? a : b;
+  push({
+    location: model.kind === 'word' ? '文書全体' : 'ブック全体',
+    matched: `${a}:${countA} / ${b}:${countB}`,
+    message: `${label}が「${a}」「${b}」で混在しています。`,
+    suggestion: `文書方針に応じて統一（多数派: ${preferred}）`
+  });
+}
+
+function yearFormatMix(model, push) {
+  const text = contentText(model);
+  const era = (text.match(/令和(?:元|[0-9０-９]+)年/g) || []).length;
+  const western = (text.match(/(?:19|20)\d{2}年/g) || []).length;
+  if (!era || !western) return;
+  push({
+    location: '文書全体',
+    matched: `和暦 ${era} / 西暦 ${western}`,
+    message: '和暦と西暦が混在しています。併記や引用を含む可能性があるため、文書の表記方針を確認してください。',
+    suggestion: '意図した併記を除き、年表記を統一'
+  });
+}
+
+function tonUnitMix(model, push) {
+  const text = contentText(model);
+  const ton = (text.match(/[0-9０-９][0-9０-９,，.．]*\s*トン/g) || []).length;
+  const t = (text.match(/[0-9０-９][0-9０-９,，.．]*\s*t(?![A-Za-z])/g) || []).length;
+  if (!ton || !t) return;
+  push({
+    location: model.kind === 'word' ? '文書全体' : 'ブック全体',
+    matched: `トン:${ton} / t:${t}`,
+    message: '数値に続く質量単位「トン」と「t」が混在しています。',
+    suggestion: '文書方針に応じて統一'
+  });
+}
+
+function nthDay(model, push) {
+  const re = /第([0-9０-９]+)日目/g;
+  for (const item of contentItems(model)) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(item.text))) {
+      push({
+        location: item.location,
+        matched: m[0],
+        message: '「第」と「目」が重複的な序数表現になっていないか確認してください。',
+        suggestion: `第${m[1]}日`,
+        context: item.context(m.index, m[0].length)
+      });
+    }
+  }
+}
+
+function fullwidthUnit(model, push) {
+  const re = /(?:ｋＷ|ＫＷ|ｋｗ|ｃｍ|ＣＭ|ｍｍ|ＭＭ|ｐｔ|ＰＴ|ｋｇ|ＫＧ|ＭＷ)/g;
+  for (const item of contentItems(model)) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(item.text))) {
+      push({
+        location: item.location,
+        matched: m[0],
+        message: '単位に全角英字が使われています。',
+        suggestion: m[0].normalize('NFKC'),
+        context: item.context(m.index, m[0].length)
+      });
+    }
   }
 }
 
@@ -116,6 +318,62 @@ function captionGaps(model, push) {
     for (let i = 1; i < items.length; i++) {
       if (items[i].minor > items[i - 1].minor + 1) push({ location: paragraphLocation(items[i].p), matched: items[i].raw.trim(), message: `${key.replace(':', '')} 系列の番号が ${items[i - 1].minor} から ${items[i].minor} に飛んでいます。`, suggestion: '欠番が意図したものか確認' });
     }
+  }
+}
+
+function captionDuplicates(model, push) {
+  const seen = new Map();
+  for (const p of model.paragraphs) {
+    const m = p.text.match(/^\s*(図|表)\s*([0-9０-９]+(?:\s*[-－―ー]\s*[0-9０-９]+)+)/);
+    if (!m) continue;
+    const key = normalizeFigureKey(m[1], m[2]);
+    if (seen.has(key)) {
+      push({
+        location: paragraphLocation(p),
+        matched: m[0].trim(),
+        message: `同じ図表番号が既に ${paragraphLocation(seen.get(key))} で使われています。`,
+        suggestion: '図表番号の重複を確認'
+      });
+    } else {
+      seen.set(key, p);
+    }
+  }
+}
+
+function headingEdgeSpaces(model, push) {
+  for (const p of model.paragraphs) {
+    if (!isHeading(p) || !p.text) continue;
+    const leading = p.text.match(/^[ \u3000]+/);
+    const trailing = p.text.match(/[ \u3000]+$/);
+    if (leading) push({
+      location: paragraphLocation(p),
+      matched: visibleSpaces(leading[0]),
+      message: '見出し先頭に空白があります。',
+      suggestion: '不要であれば削除',
+      context: excerpt(p.text, 0, leading[0].length)
+    });
+    if (trailing) push({
+      location: paragraphLocation(p),
+      matched: visibleSpaces(trailing[0]),
+      message: '見出し末尾に空白があります。',
+      suggestion: '削除',
+      context: excerpt(p.text, p.text.length - trailing[0].length, trailing[0].length)
+    });
+  }
+}
+
+function paragraphTrailingSpaces(model, push) {
+  for (const p of model.paragraphs) {
+    if (!p.text || isHeading(p)) continue;
+    const m = p.text.match(/[ \u3000]+$/);
+    if (!m) continue;
+    push({
+      location: paragraphLocation(p),
+      matched: visibleSpaces(m[0]),
+      message: '段落末尾に空白があります。',
+      suggestion: '不要であれば削除',
+      context: excerpt(p.text, p.text.length - m[0].length, m[0].length)
+    });
   }
 }
 
@@ -175,10 +433,32 @@ function selfReferences(model, push) {
   });
 }
 
+function missingSheetReferences(model, push) {
+  const names = new Set(model.sheets.map(s => s.name));
+  const re = /'((?:[^']|'')+)'!|([\p{L}\p{N}_][\p{L}\p{N}_.]*)!/gu;
+  eachCell(model, ({ sheet, cell }) => {
+    if (!cell.formula || (cell.formula.includes('[') && cell.formula.includes(']'))) return;
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(cell.formula))) {
+      const rawName = (m[1] || m[2] || '').replace(/''/g, "'");
+      if (!rawName || names.has(rawName)) continue;
+      push(cellFinding(
+        sheet,
+        cell,
+        `数式が存在しないシート「${rawName}」を参照している可能性があります。`,
+        'シート名変更・削除・参照式を確認',
+        rawName
+      ));
+    }
+  });
+}
+
 function eachCell(model, fn) { for (const sheet of model.sheets) for (const cell of sheet.cells) fn({ sheet, cell }); }
 function cellFinding(sheet, cell, message, suggestion, matched = null) { return { location: `シート「${sheet.name}」 ${cell.ref}`, matched: matched ?? String(cell.value || cell.formula || '—'), message, suggestion, context: cell.formula ? `=${cell.formula}` : String(cell.value ?? '') }; }
 function paragraphLocation(p) { return `${p.pageHint ? `保存時ページ目安 ${p.pageHint} / ` : ''}第${p.index}段落`; }
 function visibleMatch(s) { return s === '\u00a0' ? 'U+00A0' : s.replace(/\u00a0/g, '⍽'); }
+function visibleSpaces(s) { return Array.from(s).map(ch => ch === '\u3000' ? '全角空白' : '半角空白').join(' + '); }
 function excerpt(text, start, length) { const a = Math.max(0, start - 24), b = Math.min(text.length, start + length + 36); return `${a ? '…' : ''}${text.slice(a, b)}${b < text.length ? '…' : ''}`; }
 function toAsciiDigits(s) { return s.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)); }
 function normalizeFigureKey(kind, num) { return `${kind}:${toAsciiDigits(num).replace(/\s/g, '').replace(/[－―ー]/g, '-')}`; }
@@ -188,6 +468,9 @@ function parseCellRef(ref) { const m = /^\$?([A-Z]+)\$?(\d+)$/i.exec(ref); if (!
 function key(row, col) { return `${row}:${col}`; }
 function cellMap(cells) { const m = new Map(); for (const c of cells) { const p = parseCellRef(c.ref); if (p.row && p.col) m.set(key(p.row, p.col), c); } return m; }
 function hasFormula(map, row, col) { return Boolean(row > 0 && col > 0 && map.get(key(row, col))?.formula); }
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function countLiteral(text, token) { return text.split(token).length - 1; }
+function isHeading(p) { const id = String(p.styleId || '').toLowerCase(); return id.includes('heading') || id.includes('見出し'); }
 
 function normalizeFormula(formula, baseRow, baseCol) {
   return formula.replace(/(\$?)([A-Z]{1,3})(\$?)(\d+)/gi, (full, absCol, letters, absRow, rowText) => {
