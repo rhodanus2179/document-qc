@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+  xsi:type="TaskPaneApp">
+  <Id>4a025e1e-85ae-4d04-bc7b-ea1e852a802f</Id>
+  <Version>1.1.0.0</Version>
+  <ProviderName>document-qc</ProviderName>
+  <DefaultLocale>ja-JP</DefaultLocale>
+  <DisplayName DefaultValue="Document QC"/>
+  <Description DefaultValue="Word文書を端末内で解析し、表記・構造・成果品品質をチェックします。"/>
+  <IconUrl DefaultValue="https://rhodanus2179.github.io/document-qc/addin/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://rhodanus2179.github.io/document-qc/addin/assets/icon-64.png"/>
+  <SupportUrl DefaultValue="https://github.com/rhodanus2179/document-qc"/>
+  <AppDomains>
+    <AppDomain>https://rhodanus2179.github.io</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Document"/>
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="WordApi"/>
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://rhodanus2179.github.io/document-qc/addin/taskpane.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <DesktopFormFactor>
+          <FunctionFile resid="Taskpane.Url"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabReviewWord">
+              <Group id="DocumentQc.Group">
+                <Label resid="Group.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16"/>
+                  <bt:Image size="32" resid="Icon.32"/>
+                  <bt:Image size="80" resid="Icon.80"/>
+                </Icon>
+                <Control xsi:type="Button" id="DocumentQc.Open">
+                  <Label resid="Open.Label"/>
+                  <Supertip>
+                    <Title resid="Open.Label"/>
+                    <Description resid="Open.Desc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="Taskpane.Url"/>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16" DefaultValue="https://rhodanus2179.github.io/document-qc/addin/assets/icon-16.png"/>
+        <bt:Image id="Icon.32" DefaultValue="https://rhodanus2179.github.io/document-qc/addin/assets/icon-32.png"/>
+        <bt:Image id="Icon.80" DefaultValue="https://rhodanus2179.github.io/document-qc/addin/assets/icon-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://rhodanus2179.github.io/document-qc/addin/taskpane.html"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="Group.Label" DefaultValue="品質チェック"/>
+        <bt:String id="Open.Label" DefaultValue="文書QC"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="Open.Desc" DefaultValue="Document QC を開き、現在のWord文書をチェックします。"/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

@@ -1,59 +1,59 @@
 # document-qc
 
-**Version 1.0.0**
+**Version 1.1.0**
 
-Word (`.docx`) / Excel (`.xlsx`) を**ブラウザ内だけで**解析する、完全静的な品質チェックアプリです。
+Word (`.docx`) / Excel (`.xlsx`) の品質を、文書内容を外部送信せずにチェックするクライアントサイドアプリです。v1.1.0 では従来のブラウザ版に加え、現在開いている Word 文書を直接チェックできる Office Add-in 版を追加しました。
 
-## 方針
+## 2つの利用形態
 
+### Standalone
+
+ブラウザで `.docx` / `.xlsx` を選択してチェックします。
+
+- File API で端末内読込
 - サーバーAPIなし
-- アップロード処理なし（File APIで端末内読込）
 - 外部CDNなし
-- Analytics / Sentry / 広告タグなし
-- `Content-Security-Policy: connect-src 'none'`
+- `connect-src 'none'`
 - `fetch` / XHR / WebSocket / EventSource / `sendBeacon` を実行時ガードで無効化
 - 文書内容を localStorage / IndexedDB に保存しない
-- 組織固有の用語・基準・案件情報を含めない
 
-GitHub Pages等を利用する場合も、ホスティング側はHTML/CSS/JavaScriptを配信するだけです。選択したWord/Excelのバイト列を送信するコードはありません。
+### Word Add-in
 
-> この説明は本アプリケーションの実装境界について述べるものです。ブラウザ、OS、拡張機能、端末上の他ソフトウェアまで含む完全な機密性を保証するものではありません。
+Word の校閲タブから Task Pane を開き、現在の Word 文書を直接チェックします。
 
-## v1.0.0
+- Windows / Mac 版 Word では現在の文書を compressed OOXML として取得し、Standalone と同じ parser / rule engine で解析
+- 指摘から Word 上の該当箇所へ移動
+- 安全性の高い指摘は個別修正・同一ルール一括修正
+- 文脈依存の候補は「候補を適用」として明示
+- 文書内容をアプリ側の外部サーバーへ送信しない
+- Office.js は Microsoft 公式 CDN から読み込む
+- Task Pane は `connect-src 'none'`
 
-v1は、Word / Excel のローカル品質チェックを実用可能な初期安定版として区切ったリリースです。68件の汎用・公開情報ベースのルール、結果検索・絞り込み、CSV / XLSX出力、ルールON/OFF、GitHub Pages配信、通信禁止・永続保存禁止のCI監査を含みます。
+Word on the web では compressed OOXML の取得に対応していないため、v1.1.0 の完全チェックは Windows / Mac 版 Word を正式対象とします。
+
+Add-in のテスト導入・社内配布方法は [`addin/README.md`](addin/README.md) を参照してください。
 
 ## ルール設計
 
-現在は68件の汎用・公開情報ベースのルールを実装しています。明確な機械判定ができるものは「要修正」、表記方針・簡潔さ・公用文慣行など文脈依存性が残るものは原則「確認」としています。
+現在は **68件**の汎用・公開情報ベースのルールを実装しています。明確な機械判定ができるものは「要修正」、表記方針・簡潔さ・公用文慣行など文脈依存性が残るものは原則「確認」としています。
 
-組織固有の表記基準、案件固有の正式名称、意味論的に区別が必要な語（例：技術用語として正しい「消化」など）は、汎用ルールとして自動置換しません。
+組織固有の表記基準、案件固有の正式名称、意味論的に区別が必要な語は、汎用ルールとして自動置換しません。公開されている法令・計画等の正式名称や決定日は `public-master.js` に分離しています。
 
-公開されている法令・計画等の正式名称や決定日を照合するルールは、通常の文字列ルールと分離した `public-master.js` に保持します。現時点では環境省公開情報に基づく「第六次環境基本計画」の正式名称と閣議決定日を収録しています。
+旧来の公文書・ワープロ系の表記慣行も互換性確認用として一部収録しています。「独立した1桁数字を全角にする」ルールは現在の一般的な文書で必須とはせず「確認」として提示します。
 
-旧来の公文書・ワープロ系の表記慣行も、互換性確認用のルールとして一部収録します。例えば「独立した1桁数字を全角にする」ルールは、現在の一般的な文書で必須とは扱わず「確認」として提示します。
-
-## 主な機能
+## 主なチェック
 
 ### Word / 文字・表記
 
 - NBSP、連続空白、句読点重複
-- 句読点の混在
+- 句読点、`% / ％`、`CO2 / CO₂`、スラッシュ、和暦 / 西暦等の混在
 - 常体 / 敬体の文単位での簡易混在判定
-- 明確な誤記候補（例：発砲スチロール）
-- 周辺文脈を限定した誤記候補（出典文脈の「出展」、処理文脈の「選定枝」、食い違い文脈の「祖語」等）
+- 明確な誤記候裖、周辺文脈を限定した誤記候補
 - SDGs / MaaS / NOx / kW 等の大文字小文字
-- 公用文・ビジネス文書で確認しやすい表記候補（の通り、予め、出来る、または等）
+- 公用文・ビジネス文書の表記候補
 - 旧来表記の互換確認（独立した1桁の半角数字 → 全角数字）
-- 「約…くらい」「各…ごとに」等の重複表現
-- 二重否定、冗長表現の確認
-- `% / ％`、`CO2 / CO₂`、スラッシュ、和暦 / 西暦等の混在
-- 全角英字で記載された単位
-
-### 公開情報照合
-
-- 第六次環境基本計画の正式名称
-- 第六次環境基本計画の閣議決定日（令和6年5月21日 / 2024年5月21日）との近接年表記の照合
+- 重複表現、二重否定、冗長表現
+- 全角英字単位
 
 ### Word構造・成果品確認
 
@@ -69,52 +69,72 @@ v1は、Word / Excel のローカル品質チェックを実用可能な初期�
 
 - `#REF!`, `#DIV/0!`, `#VALUE!`, `#N/A` 等
 - 数式内の `#REF!`
-- hidden / veryHidden シート
-- 非表示行・列
+- hidden / veryHidden シート、非表示行・列
 - externalLinks
-- 数式領域への直値混入（近傍ヒューリスティック）
-- 数式の相対参照パターン異常（近傍ヒューリスティック）
-- 単純な自己参照
-- 存在しないシート名への数式参照
-- Wordと共通の表記ルールの一部をセル文字列にも適用
+- 数式領域への直値混入、相対参照パターン異常
+- 単純な自己参照、存在しないシート名への参照
+- Word と共通の表記ルールの一部
 
-### 共通
+### 公開情報照合
 
-- ルールON/OFF
-- 重要度（要修正 / 確認 / 参考）
-- 結果検索・絞り込み
-- CSV / XLSX エクスポート
+- 第六次環境基本計画の正式名称
+- 閣議決定日との近接年表記の照合
 
 ## アーキテクチャ
 
 ```text
-.docx / .xlsx
-      │ File API
-      ▼
- ArrayBuffer
-      ▼
- ZIP parser (browser native DecompressionStream)
-      ▼
- OOXML parser (DOMParser)
-      ▼
- common document model
-      ▼
- deterministic rule engine
-      ├─ generic rules
-      └─ public information master
-      ▼
- results → CSV / XLSX
+                         ┌─ Standalone: File API
+.docx / .xlsx ───────────┤
+                         └─ Word Add-in: Office Common API
+                                      │
+                                      ▼
+                                 ArrayBuffer
+                                      │
+                                      ▼
+                         ZIP / OOXML parser
+                                      │
+                                      ▼
+                         common document model
+                                      │
+                                      ▼
+                              core.js facade
+                                      │
+                         deterministic rule engine
+                         ├─ generic rules
+                         └─ public information master
+                                      │
+                                      ▼
+                            finding metadata
+                         ├─ Word再特定アンカー
+                         └─ 修正可否 / 置換候補
+                              │             │
+                              ▼             ▼
+                       Standalone UI   Word Task Pane
 ```
 
-外部ライブラリを実行時にロードしません。ZIPコンテナの読取と、結果XLSXの生成もリポジトリ内のコードだけで行います。
+`src/core.js` を UI から見た正式な公開窓口とし、parser / rule engine / finding metadata を UI 実装から分離しています。既存のルールエンジンは Standalone / Add-in で共用します。
 
-## 対応ブラウザ
+## ディレクトリ
 
-`DecompressionStream('deflate-raw')` が利用できる比較的新しいブラウザを対象とします。Chrome / Edge系を主対象としています。
+```text
+src/
+  core.js                 共通公開API
+  ooxml.js                OOXML → common model
+  engine*.js              ルールエンジン
+  rules*.js               ルール定義
+  finding-meta.js         アンカー・修正メタデータ
+  standalone/app.js       ブラウザ版UI
+  office/                 Word Add-in adapter / UI
+addin/
+  manifest.xml            Word Add-in manifest
+  taskpane.html/css       Task Pane
+  assets/                 リボンアイコン
+tests/
+```
 
-## ローカル実行
+## Standalone のローカル実行
 
-ES Modulesを利用するため、`file://` 直開きではなく静的HTTPサーバーから開いてください。
+ES Modules を利用するため、`file://` 直開きではなく静的 HTTP サーバーから開いてください。
 
 ```bash
 python -m http.server 8000
@@ -124,11 +144,11 @@ python -m http.server 8000
 
 ## GitHub Pages
 
-静的ファイルのみなのでGitHub Pagesで公開できます。`.github/workflows/pages.yml` は `main` 更新時にPagesへデプロイする構成です。
+静的ファイルのみなので GitHub Pages で配信できます。`.github/workflows/pages.yml` は `main` 更新時に Pages へデプロイします。Add-in の Task Pane も同じ Pages 配下から配信します。
 
 ## AIについて
 
-v1では再現性と監査性を優先し、意味論的AIレビューを実装していません。将来Gemini Nano等のオンデバイスAIを追加する場合も、クラウドAPIへのフォールバックは行わず、ファイル内容を外部送信しない設計を維持します。
+v1.1.0 では再現性と監査性を優先し、意味論的AIレビューを実装していません。将来オンデバイスAIを追加する場合も、クラウドAPIへのフォールバックを行わず、文書内容を外部送信しない設計を基本とします。
 
 ## ライセンス
 
