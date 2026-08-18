@@ -1,0 +1,45 @@
+name: Static app checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/*.js; do
+            node --check "$file"
+          done
+
+      - name: Enforce no-runtime-network invariant
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'fetch[[:space:]]*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon' src --exclude=network-lock.js; then
+            echo 'Network-capable API found outside src/network-lock.js'
+            exit 1
+          fi
+          if grep -RInE 'https?://' . --include='*.html'; then
+            echo 'External URL found in HTML'
+            exit 1
+          fi
+          grep -q "connect-src 'none'" index.html
+
+      - name: Check for persistence APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'localStorage|sessionStorage|indexedDB|serviceWorker' src; then
+            echo 'Persistent browser storage or service worker usage found'
+            exit 1
+          fi

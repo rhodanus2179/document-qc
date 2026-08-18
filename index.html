@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src data: blob:; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; media-src 'none'; worker-src 'none'">
+  <title>Document QC</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <div class="eyebrow">LOCAL DOCUMENT QUALITY CHECKER</div>
+      <h1>Document QC</h1>
+      <p class="subtitle">Word / Excel をブラウザ内だけでチェックします。</p>
+    </div>
+    <div class="privacy-badge" title="CSP と実行時ガードでアプリからのネットワーク送信を禁止しています。">
+      <span aria-hidden="true">🔒</span>
+      <div><strong>ローカル処理</strong><small>ファイル外部送信なし</small></div>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="メインナビゲーション">
+    <button class="tab is-active" data-view="check">チェック</button>
+    <button class="tab" data-view="results">結果 <span id="resultCountBadge" class="count-badge">0</span></button>
+    <button class="tab" data-view="rules">ルール</button>
+    <button class="tab" data-view="about">このアプリについて</button>
+  </nav>
+
+  <main>
+    <section id="view-check" class="view is-active">
+      <div class="hero-grid">
+        <section class="card upload-card">
+          <h2>ファイルを選択</h2>
+          <p>対応形式: <code>.docx</code> / <code>.xlsx</code></p>
+          <label id="dropZone" class="drop-zone">
+            <input id="fileInput" type="file" accept=".docx,.xlsx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <span class="drop-icon" aria-hidden="true">⇧</span>
+            <strong>クリックして選択</strong>
+            <span>またはここへドラッグ＆ドロップ</span>
+          </label>
+          <div id="selectedFile" class="selected-file" hidden></div>
+          <div class="actions">
+            <button id="checkButton" class="button primary" disabled>チェックを実行</button>
+            <button id="clearButton" class="button" disabled>クリア</button>
+          </div>
+          <div id="progress" class="progress" hidden>
+            <div class="progress-bar"><span id="progressBar"></span></div>
+            <p id="progressText">準備中...</p>
+          </div>
+          <div id="errorBox" class="alert error" hidden></div>
+        </section>
+
+        <aside class="card privacy-card">
+          <h2>プライバシー設計</h2>
+          <ul class="check-list">
+            <li>サーバーAPIを使用しません</li>
+            <li>ファイルは File API でローカル読込</li>
+            <li>本文・セル値を外部送信しません</li>
+            <li>IndexedDB / localStorage に保存しません</li>
+            <li>外部CDN・解析タグを使用しません</li>
+            <li><code>connect-src 'none'</code> で通信を禁止</li>
+          </ul>
+          <p class="muted">GitHub Pages 等はアプリの静的ファイルを配信するだけです。選択した文書はホスティング先へアップロードされません。</p>
+        </aside>
+      </div>
+
+      <section class="card summary-card">
+        <div>
+          <h2>チェック内容</h2>
+          <p>汎用ルールのみを収録しています。組織固有の用語・基準・案件情報は含みません。</p>
+        </div>
+        <div id="ruleSummary" class="stat-row"></div>
+      </section>
+    </section>
+
+    <section id="view-results" class="view">
+      <div class="section-heading">
+        <div>
+          <h2>チェック結果</h2>
+          <p id="resultMeta" class="muted">まだチェックしていません。</p>
+        </div>
+        <div class="actions">
+          <button id="exportCsv" class="button" disabled>CSV</button>
+          <button id="exportXlsx" class="button" disabled>XLSX</button>
+        </div>
+      </div>
+
+      <div class="filters card compact">
+        <label>検索 <input id="resultSearch" type="search" placeholder="ルールID、メッセージ、場所など"></label>
+        <label>重要度
+          <select id="severityFilter">
+            <option value="all">すべて</option>
+            <option value="error">要修正</option>
+            <option value="confirm">確認</option>
+            <option value="info">参考</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="emptyResults" class="empty-state card">
+        <strong>結果はまだありません</strong>
+        <span>「チェック」から Word または Excel ファイルを選択してください。</span>
+      </div>
+
+      <div id="resultsWrap" class="table-wrap" hidden>
+        <table class="results-table">
+          <thead><tr><th>ルール</th><th>重要度</th><th>場所</th><th>該当</th><th>検出内容</th><th>修正候補</th></tr></thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-rules" class="view">
+      <div class="section-heading">
+        <div>
+          <h2>ルール設定</h2>
+          <p class="muted">チェック対象を一時的にON/OFFできます。設定は端末へ保存しません。</p>
+        </div>
+        <button id="resetRules" class="button">初期状態に戻す</button>
+      </div>
+      <div id="rulesList" class="rules-list"></div>
+    </section>
+
+    <section id="view-about" class="view">
+      <article class="card prose">
+        <h2>このアプリについて</h2>
+        <p>Document QC は OOXML（<code>.docx</code> / <code>.xlsx</code>）をブラウザ上で直接解析する、完全静的な品質チェックツールです。</p>
+        <h3>セキュリティ上の境界</h3>
+        <p>アプリケーションコードには文書アップロード用APIが存在しません。ネットワークAPIも実行時に無効化し、Content Security Policy で <code>connect-src 'none'</code> を指定しています。</p>
+        <p>ただし、ブラウザやOSそのもの、端末上の他ソフトウェアまで含む完全な機密性を保証するものではありません。機密情報は所属組織の情報管理規程に従って扱ってください。</p>
+        <h3>現在の範囲</h3>
+        <p>誤記・不可視文字・表記の混在、Wordの空表・校正跡・図表参照、Excelのエラー値・参照切れ・非表示要素・外部リンク・数式パターン異常などをチェックします。意味論的なAIレビューはこの初期版では行いません。</p>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <span>Document QC</span><span>Static / client-side only</span>
+  </footer>
+
+  <script src="./src/network-lock.js"></script>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
