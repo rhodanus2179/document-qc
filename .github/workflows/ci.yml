@@ -27,6 +27,12 @@ jobs:
           set -euo pipefail
           node --experimental-default-type=module tests/rules.mjs
 
+      - name: Check hidden-state CSS invariant
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq '[hidden] { display: none !important; }' styles.css
+
       - name: Enforce no-runtime-network invariant
         shell: bash
         run: |
