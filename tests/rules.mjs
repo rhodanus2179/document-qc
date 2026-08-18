@@ -1,29 +1,28 @@
 import assert from 'node:assert/strict';
-import { runRules } from '../src/engine.js';
+import { runRules } from '../src/engine-enhanced.js';
 
-const word = {
-  kind: 'word',
-  paragraphs: [
-    {
-      index: 1,
-      pageHint: 1,
-      styleId: 'Heading1',
-      text: '　発砲スチロール SDGS 約20名くらい ',
-      runs: []
-    },
-    {
-      index: 2,
-      pageHint: 1,
-      styleId: 'Normal',
-      text: '工法を比較し、嫌気性消化の条件を整理した。',
-      runs: []
-    }
-  ],
-  tables: [],
-  hasComments: false,
-  hasTrackedChanges: false,
-  text: '　発砲スチロール SDGS 約20名くらい \n工法を比較し、嫌気性消化の条件を整理した。'
-};
+function wordModel(paragraphTexts) {
+  const paragraphs = paragraphTexts.map((text, index) => ({
+    index: index + 1,
+    pageHint: 1,
+    styleId: index === 0 ? 'Heading1' : 'Normal',
+    text,
+    runs: []
+  }));
+  return {
+    kind: 'word',
+    paragraphs,
+    tables: [],
+    hasComments: false,
+    hasTrackedChanges: false,
+    text: paragraphs.map(p => p.text).join('\n')
+  };
+}
+
+const word = wordModel([
+  '　発砲スチロール SDGS 約20名くらい ',
+  '工法を比較し、嫌気性消化の条件を整理した。'
+]);
 
 const wordFindings = runRules(word);
 const wordIds = new Set(wordFindings.map(f => f.ruleId));
@@ -33,6 +32,35 @@ assert(wordIds.has('TXT-025'), 'approximate redundancy should be detected');
 assert(wordIds.has('DOC-009'), 'heading edge space should be detected');
 assert(!wordFindings.some(f => f.matched === '工法'), 'valid word 工法 must not be auto-corrected');
 assert(!wordFindings.some(f => f.matched === '消化'), 'valid technical term 消化 must not be auto-corrected');
+
+const styleWord = wordModel([
+  'この文書は動作確認用です。わざと不備を混ぜてあります。',
+  '本業務では、施設の整備方針を検討した。調査の結果は次のとおりである。',
+  '調査対象は次のとおりです。',
+  '回収率は80％であった。詳細は別紙である。',
+  'いずれかを選択する方針とする。'
+]);
+const styleFinding = runRules(styleWord).find(f => f.ruleId === 'TXT-005');
+assert(styleFinding, 'register mixing should be detected');
+assert.equal(styleFinding.matched, '敬体 3 / 常体 4', 'register mixing must count sentence endings, not paragraphs');
+
+const parityWord = wordModel([
+  '資料の出展は各章の末尾に記載する。展示会に出展する。出展資料を配布した。',
+  '発砲スチロールと選定枝の処理方法を整理した。',
+  '評価にあたっては、担当者間で祖語が生じないよう基準を共有した。日本祖語を研究する。',
+  'グラフでは要素の感覚を調整している。',
+  '現行方式または新方式のいずれかを選択する。',
+  '第 6 次環境基本計画（令和 5 年閣議決定）の内容を踏まえている。'
+]);
+const parityFindings = runRules(parityWord);
+const parityIds = new Set(parityFindings.map(f => f.ruleId));
+for (const id of ['TXT-041', 'TXT-042', 'TXT-043', 'TXT-044', 'TXT-045', 'REF-001', 'REF-002']) {
+  assert(parityIds.has(id), `${id} should be detected in the demo-style document`);
+}
+assert.equal(parityFindings.filter(f => f.ruleId === 'TXT-041').length, 1, 'legitimate 出展 / 出展資料 must not be flagged');
+assert.equal(parityFindings.filter(f => f.ruleId === 'TXT-043').length, 1, 'legitimate 日本祖語 must not be flagged');
+assert.equal(parityFindings.find(f => f.ruleId === 'REF-001')?.suggestion, '第六次環境基本計画');
+assert.match(parityFindings.find(f => f.ruleId === 'REF-002')?.suggestion || '', /令和6年5月21日/);
 
 const excel = {
   kind: 'excel',
@@ -58,4 +86,4 @@ assert(excelIds.has('TXT-024'), 'kW casing should be detected in Excel cells');
 assert(excelIds.has('TXT-032'), 'percent width mixing should be detected');
 assert(excelIds.has('XLS-010'), 'missing sheet references should be detected');
 
-console.log(`rule tests passed: Word ${wordFindings.length}, Excel ${excelFindings.length}`);
+console.log(`rule tests passed: Word ${wordFindings.length}, parity ${parityFindings.length}, Excel ${excelFindings.length}`);
