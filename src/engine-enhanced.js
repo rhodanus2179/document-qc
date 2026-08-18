@@ -181,8 +181,7 @@ function publicOfficialName(model, push) {
       master.namePattern.lastIndex = 0;
       let m;
       while ((m = master.namePattern.exec(item.text))) {
-        const compact = normalizePlanName(m[0]);
-        if (compact === master.officialName) continue;
+        if (m[0] === master.officialName) continue;
         push({
           location: item.location,
           matched: m[0],
@@ -221,10 +220,6 @@ function publicDecisionDate(model, push) {
       }
     }
   }
-}
-
-function normalizePlanName(text) {
-  return text.replace(/[\s　]/g, '').replace(/[6６]/g, '六');
 }
 
 function paragraphLocation(p) {
