@@ -1,6 +1,6 @@
 import { parseOfficeFile } from './ooxml.js';
-import { RULES, CATEGORY_LABELS } from './rules.js';
-import { runRules } from './engine.js';
+import { RULES, CATEGORY_LABELS } from './rules-enhanced.js';
+import { runRules } from './engine-enhanced.js';
 import { downloadCsv, downloadXlsx } from './export.js';
 
 const state = {
