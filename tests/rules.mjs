@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { runRules } from '../src/engine-enhanced.js';
+import { runRules } from '../src/engine-polished.js';
 
 function wordModel(paragraphTexts) {
   const paragraphs = paragraphTexts.map((text, index) => ({
@@ -54,13 +54,24 @@ const parityWord = wordModel([
 ]);
 const parityFindings = runRules(parityWord);
 const parityIds = new Set(parityFindings.map(f => f.ruleId));
-for (const id of ['TXT-041', 'TXT-042', 'TXT-043', 'TXT-044', 'TXT-045', 'REF-001', 'REF-002']) {
+for (const id of ['TXT-041', 'TXT-042', 'TXT-043', 'TXT-044', 'TXT-045', 'TXT-046', 'REF-001', 'REF-002']) {
   assert(parityIds.has(id), `${id} should be detected in the demo-style document`);
 }
 assert.equal(parityFindings.filter(f => f.ruleId === 'TXT-041').length, 1, 'legitimate 出展 / 出展資料 must not be flagged');
 assert.equal(parityFindings.filter(f => f.ruleId === 'TXT-043').length, 1, 'legitimate 日本祖語 must not be flagged');
+assert.equal(parityFindings.find(f => f.ruleId === 'TXT-042')?.severity, 'error', 'high-confidence 選定枝 finding should be an error');
+assert.equal(parityFindings.find(f => f.ruleId === 'TXT-044')?.severity, 'error', '要素の感覚 should be an error');
 assert.equal(parityFindings.find(f => f.ruleId === 'REF-001')?.suggestion, '第六次環境基本計画');
-assert.match(parityFindings.find(f => f.ruleId === 'REF-002')?.suggestion || '', /令和6年5月21日/);
+assert.equal(parityFindings.find(f => f.ruleId === 'REF-002')?.suggestion, '令和6年');
+
+const widthWord = wordModel([
+  '第 6 章、令和 5 年。数量は1,200件、比率は0.5、識別子A1。'
+]);
+const widthFindings = runRules(widthWord).filter(f => f.ruleId === 'TXT-046');
+assert.equal(widthFindings.length, 2, 'legacy single-digit rule must ignore grouped numbers, decimals, and identifiers');
+assert.deepEqual(widthFindings.map(f => f.matched), ['6', '5']);
+assert.deepEqual(widthFindings.map(f => f.suggestion), ['６', '５']);
+assert(widthFindings.every(f => f.severity === 'confirm'), 'legacy digit-width rule must stay confirmation-only');
 
 const excel = {
   kind: 'excel',
@@ -85,5 +96,6 @@ const excelIds = new Set(excelFindings.map(f => f.ruleId));
 assert(excelIds.has('TXT-024'), 'kW casing should be detected in Excel cells');
 assert(excelIds.has('TXT-032'), 'percent width mixing should be detected');
 assert(excelIds.has('XLS-010'), 'missing sheet references should be detected');
+assert(!excelIds.has('TXT-046'), 'legacy single-digit width rule is Word-only');
 
-console.log(`rule tests passed: Word ${wordFindings.length}, parity ${parityFindings.length}, Excel ${excelFindings.length}`);
+console.log(`rule tests passed: Word ${wordFindings.length}, parity ${parityFindings.length}, width ${widthFindings.length}, Excel ${excelFindings.length}`);
