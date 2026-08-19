@@ -38,7 +38,7 @@ function updateVersionUi() {
   const footerVersion = document.querySelector('footer span:first-child');
   if (footerVersion) footerVersion.textContent = 'Document QC v1.1.0';
   const aboutLead = document.querySelector('#view-about .prose > p');
-  if (aboutLead) aboutLead.innerHTML = 'Document QC v1.1.0 は OOXML（<code>.docx</code> / <code>.xlsx</code>）をブラウゞ上で直接解析する、完全静的な品質チェックツールです。Word Add-in 版と同じ QC コアを使用します。';
+  if (aboutLead) aboutLead.innerHTML = 'Document QC v1.1.0 は OOXML（<code>.docx</code> / <code>.xlsx</code>）をブラウザ上で直接解析する、完全静的な品質チェックツールです。Word Add-in 版と同じ QC コアを使用します。';
 }
 
 function bindNavigation() {
